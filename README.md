@@ -62,18 +62,86 @@ sudo netplan apply
 
 ```bash
 [[local|localrc]]
+
+# Host IP address
+#HOST_IP=$(hostname -I | awk '{print $1}')
 HOST_IP=192.168.56.10
-PUBLIC_INTERFACE=enp0s8
-FLOATING_RANGE=192.168.56.0/24
-Q_FLOATING_ALLOCATION_POOL=start=192.168.56.100,end=192.168.56.199
-PUBLIC_NETWORK_GATEWAY=192.168.56.1
-OVS_BRIDGE_MAPPINGS=public:br-ex
-PUBLIC_BRIDGE=br-ex
-Q_USE_PROVIDERNET_FOR_PUBLIC=True
-ADMIN_PASSWORD=stack
+SERVICE_HOST=$HOST_IP
+
+
+# Floating IPs: make sure this subnet is not in use on your local network
+#FLOATING_RANGE=192.168.1.224/27
+
+# Internal (fixed) network for VM communication
+FIXED_RANGE=10.0.0.0/24
+
+# Set common passwords
+ADMIN_PASSWORD=stackpass
 DATABASE_PASSWORD=$ADMIN_PASSWORD
 RABBIT_PASSWORD=$ADMIN_PASSWORD
 SERVICE_PASSWORD=$ADMIN_PASSWORD
+
+
+# ---- Neutron + provider network on enp0s8 ----
+PUBLIC_INTERFACE=enp0s8
+PUBLIC_NETWORK_GATEWAY=192.168.56.1
+FLOATING_RANGE=192.168.56.0/24
+Q_FLOATING_ALLOCATION_POOL=start=192.168.56.100,end=192.168.56.199
+
+# Map the interface into br-ex and expose it as a flat provider net
+OVS_BRIDGE_MAPPINGS=public:br-ex
+PUBLIC_BRIDGE=br-ex
+Q_USE_PROVIDERNET_FOR_PUBLIC=True
+
+# Enable services
+enable_service h-eng h-api h-api-cfn h-api-cw   # Heat
+enable_service horizon                          # Horizon dashboard
+enable_service s-account s-container s-object s-proxy  # Swift
+
+# Reduce disk usage for logs
+LOGDAYS=1
+
+# Disable rate limiting
+API_RATE_LIMIT=False
+
+# Destination directory for DevStack
+DEST=/opt/stack
+
+# Swift specific config
+SWIFT_HASH=$(echo $RANDOM | md5sum | head -c 30)
+SWIFT_REPLICAS=1
+
+# Logging (optional)
+LOGFILE=$DEST/logs/stack.sh.log
+
+
+# ── Telemetry (metering + metrics + alarms) ─────────────────────────────────
+enable_plugin ceilometer https://opendev.org/openstack/ceilometer
+enable_service ceilometer-acompute ceilometer-acentral ceilometer-api \
+               ceilometer-collector ceilometer-api-cfn ceilometer-api-cloudwatch
+enable_plugin gnocchi https://opendev.org/openstack/gnocchi
+enable_service gnocchi-api gnocchi-metricd gnocchi-statsd
+enable_plugin aodh https://opendev.org/openstack/aodh
+enable_service aodh-api aodh-evaluator aodh-notifier
+
+# ── Billing / Rating ─────────────────────────────────────────────────────────
+enable_plugin cloudkitty https://opendev.org/openstack/cloudkitty.git master
+enable_service ck-api ck-proc ck-rating ck-upgrade
+
+# ── Configuration snippets for Telemetry / Billing ────────────────────────────
+# Ceilometer needs a notification driver:
+CEILOMETER_NOTIFICATION_DRIVER=messagingv2
+
+# Gnocchi
+GNOCCHI_DB_CONNECT=sqlite:////opt/stack/data/gnocchi.sqlite
+GNOCCHI_INDEXER_BACKEND=sqlite
+
+# Aodh (alarms)
+enable_service mongodb
+AODH_BACKEND_DATABASE=mongodb
+
+# CloudKitty (uses Ceilometer/ Gnocchi as data source)
+CLOUDKITTY_BACKEND=sqlalchemy
 ```
 
 ## 6. Run DevStack
