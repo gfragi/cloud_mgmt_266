@@ -1,0 +1,64 @@
+#cloud-config
+system_info:
+  default_user:
+    name: debian  # Default Debian user (change if needed)
+
+users:
+  - name: admin  # Your custom user
+    gecos: "Admin User"
+    groups: [sudo, adm, docker]  # Optional groups
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    passwd: $6$Z6pjuM4WlUMvVBwl$ULxBtBj83xbkqewNN4flOghJRiuzrL03rwyWgC9ulcFq/0B9rkBDZofW6ozrhdbFcK7Vg600WYniNWfZSKSjU.
+  # Replace with your hashed password
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC6Zeep0SOruC32Xcfx25GbXVW873g8nJFIiwYFfQ0np/i6xaIP4eDVKe9+0I73xKWjbhg84/6pKU/aknLxszeUg2PAaUKUsh9n52eL5dlC8AQ3ecmmJ9Uz/wQ1e+46xAw6gvmrMTTW0VP+MA8yuWzX5oz9o43aR7t3q1451oo2YdCkr1yAYqmZ0X3a4OorGd9EyWNQeAHQwjdIlBe5WIYPyAngxZz9/rC3gXMqrpPz32kF5oN1cvNju+bBSJPlXAuwO/0+obPkHAa3BUCJrpOPaqmlBfASEf5SonzRpL40teLxFyzd7uArZ/326s2BOAN98bbzS9dpn0OLF6xsirxf user@host  # Your SSH public key
+
+
+# Set hostname
+hostname: debian-vm
+fqdn: debian-vm.local
+
+# Network configuration (forces eth0)
+write_files:
+  - path: /etc/cloud/cloud.cfg.d/99-disable-predictable-names.cfg
+    content: |
+      network: {config: disabled}
+  - path: /etc/default/grub
+    append: true
+    content: |
+      GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0"
+  - path: /etc/network/interfaces.d/eth0
+    content: |
+      auto eth0
+      iface eth0 inet dhcp
+        up echo "nameserver 8.8.8.8" > /etc/resolv.conf
+        up echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
+# Packages and updates
+package_update: true
+package_upgrade: true
+packages:
+  - qemu-guest-agent
+  - curl
+  - tmux
+
+# Boot commands
+runcmd:
+  - [update-grub]
+  - [dhclient, -v, eth0]  # Force DHCP lease
+  - [sh, -c, 'until ping -c1 8.8.8.8; do sleep 2; done']  # Wait for internet
+  - [apt-get, update]
+  - [apt-get, install, -y, postgresql-15]
+  - [systemctl, enable, postgresql]
+  - [systemctl, start, postgresql]
+  - [sudo, -u, postgres, psql, -c, "ALTER USER postgres PASSWORD 'yourpassword';"]
+  - [systemctl, enable, qemu-guest-agent]
+  - [systemctl, start, qemu-guest-agent]
+  - [sed, -i, 's/#PermitRootLogin.*/PermitRootLogin no/', /etc/ssh/sshd_config]
+  - [systemctl, restart, ssh]
+
+power_state:
+  mode: reboot
+  message: "Cloud-init completed. Rebooting..."
+  timeout: 30

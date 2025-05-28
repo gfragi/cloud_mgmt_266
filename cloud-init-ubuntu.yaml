@@ -1,0 +1,44 @@
+#cloud-config
+autoinstall:
+  version: 1
+  identity:
+    hostname: ubuntu-pg
+    username: admin
+    password: "$6$MY5J3J7BrWrCINab$AWdgFVgo7bq1MGnx9s9t5kEYmMi0760J4CJ0cyiYcZWQNYHpcWQMW/REL29epUegSlqhcJ//VLmOWbKvKuQ2y1"  # Generate with: mkpasswd -m sha-512
+
+# Network configuration (forces predictable eth0)
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: true
+      dhcp6: false
+      nameservers:
+        addresses: [8.8.8.8, 1.1.1.1]
+
+# Package installation with internet check
+packages:
+  - postgresql-15
+  - postgresql-contrib-15
+
+runcmd:
+  # Wait for internet connectivity
+  - [sh, -c, 'until ping -c1 8.8.8.8; do sleep 2; echo "Waiting for internet..."; done']
+  
+  # Install PostgreSQL if not already installed
+  - [sh, -c, 'if ! command -v psql &>/dev/null; then apt-get update && apt-get install -y postgresql-15; fi']
+  
+  # Configure PostgreSQL
+  - [sudo, -u, postgres, psql, -c, "ALTER USER postgres WITH PASSWORD 'your_db_password';"]
+  - [sudo, -u, postgres, createdb, myapp]
+  
+  # Security hardening
+  - [sed, -i, 's/#PasswordAuthentication yes/PasswordAuthentication no/', /etc/ssh/sshd_config]
+  - [sed, -i, 's/PasswordAuthentication no/PasswordAuthentication yes/', /etc/ssh/sshd_config]
+  - [systemctl, restart, ssh]
+
+# Ensure services start on boot
+power_state:
+  mode: reboot
+  message: "Cloud-init completed. Rebooting..."
+  timeout: 30

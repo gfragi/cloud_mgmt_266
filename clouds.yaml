@@ -1,0 +1,19 @@
+clouds:
+  os_tenant1:
+    auth:
+      auth_url: "https://<your_openstack_url>:<port_number>"
+      username: "<your_ldap_username>"
+      password: "<your_ldap_password>"
+      user_domain_name: "<your_ldap_domain>"
+      project_domain_name: "<project_domain>"
+      project_name: "<project_name>"
+    region_name: "<region_name>"
+  os_tenant2:
+    auth:
+      auth_url: "https://<your_openstack_url>:<port_number>"
+      username: "<your_ldap_username>"
+      password: "<your_ldap_password>"
+      user_domain_name: "<your_ldap_domain>"
+      project_domain_name: "<project_domain>"
+      project_name: "<project_name>"
+    region_name: "<region_name>"
