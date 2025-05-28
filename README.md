@@ -64,8 +64,6 @@ Create `/opt/stack/devstack/local.conf` with the following content:
 
 (find the file in this repo: [local.conf](local.conf))
 
-```ini
-
 ```bash
 [[local|localrc]]
 
@@ -151,25 +149,100 @@ curl -I http://192.168.56.10/ | grep Location   # /auth/login/
 6. From laptop: `ssh ubuntu@<floating‑IP>`
 
 
-## 10. After a reboot — what to expect & how to restore
+# 10. After Seting Up your first project
+### 10.1 Verify Initial Setup
 
-DevStack does not rebuild the bridge on boot. Here are the approach you can have.
+Ensure public and private networks exist.
 
-### Netplan bridge that survives reboots
-Apply it once with sudo netplan apply. From then on `br‑ex` is up (with the IP) before DevStack starts, so SSH to `192.168.56.10` works immediately after every reboot.
-
-
-
-```yaml
-network:
-  version: 2
-  renderer: networkd
-  ethernets:
-    enp0s8: {}
-  bridges:
-    br-ex:
-      interfaces: [enp0s8]
-      addresses: [192.168.56.10/24]
-      parameters:
-        stp: false
+```bash
+# Check OpenStack services
+openstack network list
+openstack subnet list
 ```
+
+
+### 10.2 Configure Open vSwitch (OVS)
+
+#### A. Clean Up Existing Bridges
+```bash
+# Remove all OVS bridges (start fresh)
+sudo ovs-vsctl del-br br-ex
+sudo ovs-vsctl del-br br-int
+
+# Recreate bridges
+sudo ovs-vsctl add-br br-ex
+sudo ovs-vsctl add-br br-int
+```
+
+#### B. Assign Static IP to br-ex
+
+```bash
+# Assign IP (match your localrc HOST_IP)
+sudo ip addr add 192.168.56.10/24 dev br-ex
+sudo ip link set br-ex up
+
+# Set default gateway
+sudo ip route add default via 192.168.56.1 dev br-ex
+```
+#### C. Attach Physical Interface
+```bash
+
+# Replace `enp0s8` with your physical NIC
+sudo ovs-vsctl add-port br-ex enp0s8
+sudo ip link set enp0s8 up
+```
+D. Verify OVS Configuration
+```bash
+sudo ovs-vsctl show
+```
+Expected Output:
+
+- br-ex with enp0s8 and no errors.
+- br-int with no stale ports.
+
+
+### 10.3 Fix Neutron Integration
+#### A. Restart Services
+
+```bash
+sudo systemctl restart devstack@q-svc  # Neutron server
+sudo systemctl restart devstack@q-agt  # OVS agent
+sudo systemctl restart apache2         # Horizon dashboard
+```
+
+#### B. Clean Stale Ports
+
+```bash
+# List and delete stale tap interfaces
+sudo ovs-vsctl list-ports br-int | grep tap | xargs -I {} sudo ovs-vsctl del-port br-int {}
+```
+
+### 10.4 Configure Security Groups
+
+```bash
+# Allow ICMP (ping) and SSH
+openstack security group rule create --proto icmp --remote-ip 0.0.0.0/0 default
+openstack security group rule create --proto tcp --dst-port 22 --remote-ip 0.0.0.0/0 default
+```
+
+### 10.5 Troubleshooting
+#### A. Common Errors
+
+
+
+#### B. Logs to Check
+
+```bash
+# OVS logs
+sudo journalctl -u openvswitch-switch
+
+# Neutron logs
+tail -f /opt/stack/logs/q-svc.log
+```
+
+### 10.6 Final Checks
+
+- `br-ex` has correct IP (`192.168.56.10/24`).
+- `enp0s8` is attached to `br-ex` with no errors.
+- Security groups allow `ICMP/SSH`.
+- Instances get floating IPs and are reachable.
