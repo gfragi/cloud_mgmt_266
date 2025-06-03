@@ -246,3 +246,22 @@ tail -f /opt/stack/logs/q-svc.log
 - `enp0s8` is attached to `br-ex` with no errors.
 - Security groups allow `ICMP/SSH`.
 - Instances get floating IPs and are reachable.
+
+
+## Post-Install Steps for Azure
+
+### 1. Allow API Access
+
+Create NSG rules
+```bash
+openstack security group rule create --proto tcp --dst-port 5000,9696 --remote-ip 0.0.0.0/0 default
+```
+
+
+### 2. Persistent Storage
+
+Attach Azure Disk for volumes:
+
+```bash
+openstack volume create --size 50 --type standard_lrs cinder-volumes
+```
