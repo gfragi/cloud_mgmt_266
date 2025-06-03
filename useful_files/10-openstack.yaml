@@ -1,0 +1,22 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp0s8:
+      dhcp4: false
+      dhcp6: false
+    enp0s3:
+     dhcp4: true
+     dhcp6: false
+  bridges:
+    br-ex:
+      interfaces: [enp0s8]
+      addresses: [192.168.56.10/24]
+      nameservers:
+        addresses: [8.8.8.8, 8.8.4.4]
+      parameters:
+        stp: false
+    br-int:
+      interfaces: []
+      parameters:
+        stp: false

@@ -26,7 +26,7 @@ things simple and secure.*
 
 ---
 ## 2.  Prepare the Host‑only network (do once)
-1. _VirtualBox ▶ **File ▸ Preferences ▸ Network**_
+1. _VirtualBox ▶ **Tools ▸ Properties ▸ Network**_
 2. Add **vboxnet0**:
    * IPv4 = `192.168.56.0/24`
    * **Disable** the DHCP server (DevStack will be DHCP later).
