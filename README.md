@@ -149,6 +149,25 @@ curl -I http://192.168.56.10/ | grep Location   # /auth/login/
 6. From laptop: `ssh ubuntu@<floating‑IP>`
 
 
+
+## Post-Install Steps for Azure
+
+### 1. Allow API Access
+
+Create NSG rules
+```bash
+openstack security group rule create --proto tcp --dst-port 5000,9696 --remote-ip 0.0.0.0/0 default
+```
+
+
+### 2. Persistent Storage
+
+Attach Azure Disk for volumes:
+
+```bash
+openstack volume create --size 50 --type standard_lrs cinder-volumes
+```
+
 # 10. After Seting Up your first project
 ### 10.1 Verify Initial Setup
 
@@ -299,3 +318,5 @@ sudo ovs-vsctl \
 sudo ip addr add 192.168.56.10/24 dev br-ex
 sudo ip link set br-ex up
 ```
+
+
