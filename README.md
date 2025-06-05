@@ -315,8 +315,6 @@ sudo ovs-vsctl \
 ### 6. Restart Neutron Services
 
 ```bash
-sudo ip addr add 192.168.56.10/24 dev br-ex
-sudo ip link set br-ex up
-```
-
+sudo systemctl restart openvswitch-switch
+sudo systemctl restart devstack@q-*
 
