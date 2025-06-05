@@ -246,3 +246,56 @@ tail -f /opt/stack/logs/q-svc.log
 - `enp0s8` is attached to `br-ex` with no errors.
 - Security groups allow `ICMP/SSH`.
 - Instances get floating IPs and are reachable.
+
+
+## Complete OVS Reset Procedure
+
+### 1. Clean Up Existing Bridges
+
+```bash
+sudo ovs-vsctl del-br br-int
+sudo ovs-vsctl del-br br-ex
+sudo ip link delete br-ex 2>/dev/null || true
+sudo ip link delete br-int 2>/dev/null || true
+```
+
+### 2. Recreate Bridges
+
+```bash
+sudo ovs-vsctl add-br br-ex
+sudo ovs-vsctl add-br br-int
+sudo ovs-vsctl set bridge br-int fail_mode=secure
+sudo ovs-vsctl set bridge br-ex fail_mode=secure
+```
+
+### 3. Retach Physical Interface
+
+```bash
+sudo ip link set enp0s8 down
+sudo ovs-vsctl add-port br-ex enp0s8
+sudo ip link set enp0s8 up
+```
+
+### 4. Configure IP Addressing
+
+```bash
+sudo ip addr add 192.168.56.10/24 dev br-ex
+sudo ip link set br-ex up
+```
+
+### 5. Rebuild Patch port connections
+
+```bash
+sudo ovs-vsctl \
+    -- add-port br-int patch-br-int-to-provnet \
+    -- set interface patch-br-int-to-provnet type=patch options:peer=patch-provnet-to-br-int \
+    -- add-port br-ex patch-provnet-to-br-int \
+    -- set interface patch-provnet-to-br-int type=patch options:peer=patch-br-int-to-provnet
+```
+
+### 6. Restart Neutron Services
+
+```bash
+sudo ip addr add 192.168.56.10/24 dev br-ex
+sudo ip link set br-ex up
+```
