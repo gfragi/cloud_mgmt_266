@@ -149,6 +149,25 @@ curl -I http://192.168.56.10/ | grep Location   # /auth/login/
 6. From laptop: `ssh ubuntu@<floating‑IP>`
 
 
+
+## Post-Install Steps for Azure
+
+### 1. Allow API Access
+
+Create NSG rules
+```bash
+openstack security group rule create --proto tcp --dst-port 5000,9696 --remote-ip 0.0.0.0/0 default
+```
+
+
+### 2. Persistent Storage
+
+Attach Azure Disk for volumes:
+
+```bash
+openstack volume create --size 50 --type standard_lrs cinder-volumes
+```
+
 # 10. After Seting Up your first project
 ### 10.1 Verify Initial Setup
 
@@ -248,20 +267,54 @@ tail -f /opt/stack/logs/q-svc.log
 - Instances get floating IPs and are reachable.
 
 
-## Post-Install Steps for Azure
+## Complete OVS Reset Procedure
 
-### 1. Allow API Access
-
-Create NSG rules
-```bash
-openstack security group rule create --proto tcp --dst-port 5000,9696 --remote-ip 0.0.0.0/0 default
-```
-
-
-### 2. Persistent Storage
-
-Attach Azure Disk for volumes:
+### 1. Clean Up Existing Bridges
 
 ```bash
-openstack volume create --size 50 --type standard_lrs cinder-volumes
+sudo ovs-vsctl del-br br-int
+sudo ovs-vsctl del-br br-ex
+sudo ip link delete br-ex 2>/dev/null || true
+sudo ip link delete br-int 2>/dev/null || true
 ```
+
+### 2. Recreate Bridges
+
+```bash
+sudo ovs-vsctl add-br br-ex
+sudo ovs-vsctl add-br br-int
+sudo ovs-vsctl set bridge br-int fail_mode=secure
+sudo ovs-vsctl set bridge br-ex fail_mode=secure
+```
+
+### 3. Retach Physical Interface
+
+```bash
+sudo ip link set enp0s8 down
+sudo ovs-vsctl add-port br-ex enp0s8
+sudo ip link set enp0s8 up
+```
+
+### 4. Configure IP Addressing
+
+```bash
+sudo ip addr add 192.168.56.10/24 dev br-ex
+sudo ip link set br-ex up
+```
+
+### 5. Rebuild Patch port connections
+
+```bash
+sudo ovs-vsctl \
+    -- add-port br-int patch-br-int-to-provnet \
+    -- set interface patch-br-int-to-provnet type=patch options:peer=patch-provnet-to-br-int \
+    -- add-port br-ex patch-provnet-to-br-int \
+    -- set interface patch-provnet-to-br-int type=patch options:peer=patch-br-int-to-provnet
+```
+
+### 6. Restart Neutron Services
+
+```bash
+sudo systemctl restart openvswitch-switch
+sudo systemctl restart devstack@q-*
+
